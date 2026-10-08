@@ -1,6 +1,6 @@
-# Babashka ChatGPT OIDC client
+# ChatGPT OIDC client
 
-A small Babashka CLI implementing OpenAI's official **Sign in with ChatGPT** flow for eligible open-source/local applications. Set `CHATGPT_AGENT_NAME` if you want the registration display name to differ from the default `Babashka ChatGPT CLI`.
+A CLI implementing OpenAI's official **Sign in with ChatGPT** flow for eligible open-source/local applications. Set `CHATGPT_AGENT_NAME` if you want the registration display name to differ from the default `ChatGPT OIDC CLI`.
 
 It does **not** scrape or reuse ChatGPT web-session cookies/tokens and does not call ChatGPT private `backend-api` endpoints. The OAuth token it obtains is for eligible requests to the public OpenAI API resource `https://api.openai.com/v1`.
 
@@ -21,7 +21,7 @@ bin install io.github.jeroenvandijk/chatgpt-oidc
 To place the access token in an environment variable without printing extra status text:
 
 ```bash
-export ACCESS_TOKEN="$(chatgpt-auth token)"
+export ACCESS_TOKEN="$(chatgpt-oidc token)"
 ```
 
 The `token` command refreshes automatically when the access token is close to expiry.
@@ -29,8 +29,8 @@ The `token` command refreshes automatically when the access token is close to ex
 Other commands:
 
 ```bash
-chatgpt-auth refresh
-chatgpt-auth logout
+chatgpt-oidc refresh
+chatgpt-oidc logout
 ```
 
 ## Credential storage
