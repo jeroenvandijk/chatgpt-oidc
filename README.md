@@ -6,7 +6,7 @@ It does **not** scrape or reuse ChatGPT web-session cookies/tokens and does not 
 
 ## Requirements
 
-- Babashka >= 1.1.171 (a current release is recommended)
+- Babashka >= 1.13.225 (a current release is recommended)
 - A browser on the same machine for interactive sign-in
 - An eligible ChatGPT account for ChatGPT-plan-backed API usage
 
@@ -15,16 +15,13 @@ No third-party Babashka dependencies are required.
 ## Use
 
 ```bash
-chmod +x chatgpt-auth.bb
-./chatgpt-auth.bb login
-./chatgpt-auth.bb status
-./chatgpt-auth.bb token
+bin install io.github.jeroenvandijk/chatgpt-oidc
 ```
 
 To place the access token in an environment variable without printing extra status text:
 
 ```bash
-export ACCESS_TOKEN="$(./chatgpt-auth.bb token)"
+export ACCESS_TOKEN="$(chatgpt-auth token)"
 ```
 
 The `token` command refreshes automatically when the access token is close to expiry.
@@ -32,13 +29,13 @@ The `token` command refreshes automatically when the access token is close to ex
 Other commands:
 
 ```bash
-./chatgpt-auth.bb refresh
-./chatgpt-auth.bb logout
+chatgpt-auth refresh
+chatgpt-auth logout
 ```
 
 ## Credential storage
 
-Credentials are stored in `~/.config/chatgpt-bb-oidc/auth.edn`; the stable machine host ID is kept separately in `~/.config/chatgpt-bb-oidc/host.edn`.
+Credentials are stored in `~/.config/chatgpt-oidc/auth.edn`; the stable machine host ID is kept separately in `~/.config/chatgpt-oidc/host.edn`.
 
 On POSIX filesystems the client attempts to set both files to mode `0600`. `auth.edn` contains access, refresh, and ID tokens, so treat it as a secret and never commit or log it. `logout` attempts to revoke the saved refresh token with OpenAI, then clears access/refresh/ID tokens locally. It retains the stable host ID and the non-secret issued client-ID/account mapping so a later login can reuse the same app registration. If the network revocation cannot be confirmed, the CLI still clears local tokens and prints a warning.
 
