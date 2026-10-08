@@ -1,6 +1,4 @@
-#!/usr/bin/env bb
-
-(ns chatgpt-auth
+(ns jeroenvandijk.oidc.chatgpt.api
   (:require [babashka.http-client :as http]
             [babashka.process :as process]
             [cheshire.core :as json]
@@ -17,11 +15,14 @@
            (java.util Base64 UUID)))
 
 (def ^:private app-name
-  (or (System/getenv "CHATGPT_AGENT_NAME") "Babashka ChatGPT CLI"))
+  (or (System/getenv "CHATGPT_AGENT_NAME") "ChatGPT OIDC CLI"))
+
+(def program-name "chatgpt-oidc")
+
 (def ^:private issuer "https://auth.openai.com")
 (def ^:private discovery-url "https://auth.openai.com/.well-known/openid-configuration")
 (def ^:private resource "https://api.openai.com/v1")
-(def ^:private requested-scope
+(def ^:private requested-scope-default
   "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct")
 (def ^:private callback-path "/auth/callback")
 (def ^:private callback-timeout-ms (* 10 60 1000))
@@ -36,7 +37,7 @@
   (throw (ex-info message {})))
 
 (defn- config-dir []
-  (io/file (System/getProperty "user.home") ".config" "chatgpt-bb-oidc"))
+  (io/file (System/getProperty "user.home") ".config" program-name))
 
 (defn- auth-file []
   (io/file (config-dir) "auth.edn"))
@@ -325,7 +326,8 @@
 (defn- granted-scopes [token-response]
   (set (remove str/blank? (str/split (or (:scope token-response) "") #"\s+"))))
 
-(defn- login! []
+(defn login! 
+  [{:keys! [scope]}]
   (let [host-id (ensure-host-id!)
         existing (or (load-auth) {})
         discovery (discovery!)
@@ -345,7 +347,7 @@
                                 :ext_agent_host_id host-id
                                 :response_type "code"
                                 :redirect_uri redirect-uri
-                                :scope requested-scope
+                                :scope scope
                                 :resource resource
                                 :state state
                                 :nonce nonce
@@ -418,7 +420,7 @@
                               :earliest-refresh-at (:earliest_refresh_at token-response)
                               :saved-at (.toString (Instant/now))})]
                   (eprintln "Signed in successfully. Credentials saved to" (.getPath (auth-file)))
-                  (eprintln "Run: ./chatgpt-auth.bb token")
+                  (eprintln (str "Run: " program-name " token"))
                   saved))))))
       (finally
         (.close server)))))
@@ -427,11 +429,11 @@
   (let [auth (load-auth)]
     (cond
       (nil? auth)
-      (fail! "No saved credentials. Run `./chatgpt-auth.bb login` first.")
+      (fail! (str "No saved credentials. Run `" program-name " login` first."))
 
       (and (str/blank? (:access-token auth))
            (str/blank? (:refresh-token auth)))
-      (fail! "Signed out. Run `./chatgpt-auth.bb login` to authorize again.")
+      (fail! (str "Signed out. Run `" program-name " login` to authorize again."))
 
       :else auth)))
 
@@ -444,7 +446,7 @@
               now (.getEpochSecond (Instant/now))]
           (<= expires-at (+ now refresh-skew-seconds))))))
 
-(defn- refresh! []
+(defn refresh! []
   (let [auth (require-auth)
         discovery (discovery!)]
     (when (str/blank? (:refresh-token auth))
@@ -467,13 +469,13 @@
                              :scope (or (:scope token-response)
                                         (:scope auth))
                              :earliest-refresh-at (:earliest_refresh_at token-response)
-                             :saved-at (.toString (Instant/now)))
+                             :saved-at (str (Instant/now)))
                       (cond-> (:id_token token-response)
                         (assoc :id-token (:id_token token-response))))]
       (save-auth! updated)
       updated)))
 
-(defn- current-token! []
+(defn current-token! []
   (let [auth (require-auth)
         auth (if (access-token-expired-soon? auth)
                (refresh!)
@@ -482,7 +484,8 @@
       (fail! "No access token is available; run login again."))
     (:access-token auth)))
 
-(defn- status! []
+(defn status! 
+  []
   (let [auth (load-auth)
         signed-in? (and auth
                         (or (not (str/blank? (:access-token auth)))
@@ -514,7 +517,8 @@
         (when-not (= 200 (:status resp))
           (fail! (str "Refresh-token revocation failed with HTTP " (:status resp))))))))
 
-(defn- logout! []
+(defn logout! 
+  []
   (if-let [auth (load-auth)]
     (let [revoked?
           (try
@@ -534,30 +538,3 @@
                  "Signed out locally; registration mapping retained. Remote revocation was not confirmed.")))
     (println "No local credentials found.")))
 
-(defn- usage []
-  (println "Usage: chatgpt-auth.bb <command>")
-  (println)
-  (println "Commands:")
-  (println "  login    Sign in with ChatGPT using OIDC + PKCE")
-  (println "  token    Print a fresh access token to stdout")
-  (println "  refresh  Refresh the saved token set")
-  (println "  status   Show non-secret session metadata")
-  (println "  logout   Revoke refresh token and clear saved token credentials")
-  (println)
-  (println "Example:")
-  (println "  export ACCESS_TOKEN=\"$(./chatgpt-auth.bb token)\""))
-
-(defn -main [& args]
-  (try
-    (case (first args)
-      "login" (do (login!) nil)
-      "token" (println (current-token!))
-      "refresh" (do (refresh!) (eprintln "Token refreshed."))
-      "status" (status!)
-      "logout" (logout!)
-      (usage))
-    (catch Exception e
-      (eprintln "error:" (.getMessage e))
-      (System/exit 1))))
-
-(apply -main *command-line-args*)
