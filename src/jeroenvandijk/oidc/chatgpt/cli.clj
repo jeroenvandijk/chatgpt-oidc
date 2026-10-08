@@ -38,19 +38,11 @@
   [& _]
   (println (api/current-token!)))
 
-(def tree {"login" {:exec-fn `login}
-           "token" {:exec-fn `token}
-           "refresh" {:exec-fn `refresh}
-           "status" {:exec-fn `status}
-           "logout" {:exec-fn `logout}})
-
-(defn resolve-tree [tree]
-  (clojure.walk/postwalk (fn [x]
-                           (if-let [sym (:exec-fn x)]
-                             (let [v (resolve sym)]
-                               (merge {:exec-fn v} (:org.babashka/cli (meta sym))))
-                             x))
-                         tree))
+(def tree {"login" {:exec-fn #'login}
+           "token" {:exec-fn #'token}
+           "refresh" {:exec-fn #'refresh}
+           "status" {:exec-fn #'status}
+           "logout" {:exec-fn #'logout}})
 
 (defn -main [& args]
   (cli/dispatch {:doc "CLI to manage OpenAI ChatGpt OIDC tokens"
@@ -61,7 +53,7 @@
                           "  # retrieve token"
                           export-token-example
                           ""]
-                 :cmd (resolve-tree tree)}
+                 :cmd tree}
                 args
                 {:prog api/program-name
                  :help true}))
